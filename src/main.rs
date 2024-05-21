@@ -1,5 +1,32 @@
 use eframe::egui;
 use std::process::Command;
+use std::str::FromStr;
+
+fn get_pipewire_setting<T: FromStr>(setting: &str) -> T
+where
+    <T as FromStr>::Err: std::fmt::Debug,
+{
+    let mut command = Command::new("pw-metadata");
+    let res = command
+        .arg("-n")
+        .arg("settings")
+        .arg("0")
+        .arg(setting)
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+    let output: Vec<&str> = std::str::from_utf8(&res)
+        .expect("output was not a valid utf8 string")
+        .split("\n")
+        .collect();
+    let fields: Vec<&str> = output[1].split(" ").collect();
+    let field: Vec<&str> = fields[3].split(":").collect();
+    let str = field[1].to_string();
+    let len = str.len() - 1;
+    str[1..len]
+        .parse::<T>()
+        .expect("string didn't have the expected format")
+}
 
 fn apply_pipewire_settings(setting: &str, value: &str) {
     let mut command = Command::new("pw-metadata");
@@ -15,7 +42,7 @@ fn apply_pipewire_settings(setting: &str, value: &str) {
 
 fn change_sample_rate(sample_rate: u32) -> Option<()> {
     let as_str = sample_rate.to_string();
-    apply_pipewire_settings(&"clock.force-rate", &as_str);
+    apply_pipewire_settings("clock.force-rate", &as_str);
     Some(())
 }
 
@@ -45,8 +72,8 @@ struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            sample_rate: 0,
-            block_size: 0,
+            sample_rate: get_pipewire_setting("clock.force-rate"),
+            block_size: get_pipewire_setting("clock.force-quantum"),
         }
     }
 }
